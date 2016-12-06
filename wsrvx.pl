@@ -112,6 +112,7 @@ sub main() {
 	die "can't setup server" unless $server;
 	print "[Server $0 accepting clients at http://localhost:$PORT/]\n";
 
+    $SIG{CHLD} = 'IGNORE';
 	while ($client = $server->accept()) {
 		my $pid = fork();
 		die "Cannot fork" unless defined $pid;
@@ -121,6 +122,7 @@ sub main() {
 		}
 		else { #child
 			&doChildWork();
+            exit(0);
 		}
 	}
 }
