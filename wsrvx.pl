@@ -12,7 +12,7 @@ my $FLAG_SHOWHIDDEN = 0;
 my $FLAG_USEWIKI    = 0;
 my $FLAG_CGI        = 0;
 my $PORT            = 9000;
-my  $VERSION = '16.11.29';
+my  $VERSION = '13.11.19';
 my %param;
 $param{'_SERVER'}{'HTTPS'}='on';
 $param{'_SERVER'}{'GATEWAY_INTERFACE'} = 'CGI/1.1';
@@ -23,7 +23,7 @@ $param{'_SERVER'}{'SERVER_SOFTWARE'}="WSRVX $VERSION";
 $param{'_SERVER'}{'SERVER_ADMIN'} = 'adminguy@acme.com';
 $param{'_SERVER'}{'SERVER_NAME'} = 'coyote.acme.com';
 $param{'_SERVER'}{'SERVER_PROTOCOL'} = 'HTTP/1.0';
-$param{'_SERVER'}{'DEBUG'} = '0';
+$param{'_SERVER'}{'DEBUG'} = '1';
 
 
 =comment
@@ -65,18 +65,10 @@ sub debug() {
 	printf STDERR ("MARK %d : %s\n",$mark++,$mesg); 
 }
 
-sub credit(){
-    print STDERR "$0 version $VERSION\n";
-    print STDERR "by Meir Michanie\n";
-    print STDERR "Released under GPL2\n";
-    print STDERR "$0\n";
-}
-
 sub printusage() {
 	print STDERR "$0\n";
 	print STDERR "Usage:\n";
-	print STDERR "$0 [--port <port>] [--root <path>] [--wiki] [--debug] [--cgi <.ext>]\n";
-	print STDERR "$0 --version\n";
+	print STDERR "$0 [--port <port>] [--root <path>] [--wiki] [--cgi <.ext>]\n";
 	print STDERR "\n";
 	print STDERR "\n";
 }
@@ -87,12 +79,8 @@ sub main() {
 			$PORT=shift @ARGV;
 		} elsif ($_ eq '--root' and @ARGV) {
 			$ROOT= shift @ARGV;
-		} elsif ($_ eq '--debug' or $_ eq '-d') {
-			$param{'_SERVER'}{'DEBUG'} = 1;
 		} elsif ($_ eq '--wiki') {
 			$FLAG_USEWIKI=1;
-		} elsif ($_ eq '--version' or $_ eq '-v') {
-			&credit();exit(0);
 		} elsif ($_ eq '--help' or $_ eq '-h') {
 			&printusage();exit(0);
 		} elsif ($_ eq '--cgi' and @ARGV) {
@@ -112,7 +100,6 @@ sub main() {
 	die "can't setup server" unless $server;
 	print "[Server $0 accepting clients at http://localhost:$PORT/]\n";
 
-    $SIG{CHLD} = 'IGNORE';
 	while ($client = $server->accept()) {
 		my $pid = fork();
 		die "Cannot fork" unless defined $pid;
@@ -122,7 +109,6 @@ sub main() {
 		}
 		else { #child
 			&doChildWork();
-            exit(0);
 		}
 	}
 }
@@ -148,7 +134,6 @@ sub doChildWork() {
 	foreach my $key (keys %{$param{'_CLIENT'}}){
 		&debug("CLIENT $key:$param{'_CLIENT'}{$key}");
 	}
-    # &debug("Do: dynds --update $ENV{'QUERY_STRING'} $ENV{'REMOTE_HOST'}");
 	&sendError(404, ('file',$file)) unless  -e "$file" ;
 	&sendError(503,('file', $file)) unless  -r "$file" ;
 	
@@ -221,13 +206,9 @@ sub getFileAndCGIParams() {
 		$cgiParams=substr($2,0,1024);
 		$param{'_SERVER'}{'QUERY_STRING'}=$cgiParams;
 		foreach (split ("&",$2)) {
-            if (m/=/){
-			    my ($key,$val) = split ("=",$_);
-			    $val=&querystring2plain($val);
-			    $param{'_CLIENT'}{$key}=$val;
-            }else{
-                $param{'_CLIENT'}{$_}++;
-            }
+			my ($key,$val) = split ("=",$_);
+			$val=&querystring2plain($val);
+			$param{'_CLIENT'}{$key}=$val;
 		}
 	}
 	$file=&uri2plain($file);
@@ -327,9 +308,11 @@ sub processCGIFile() {
 	}
 	open(my $f, "$file |") ||  &sendError(501, ('exit' => 1)); 
 	print $client "HTTP/1.0 200 OK\n";
+	print $client "Content-Type: text/html\n\n";
 	while (<$f>) {
 		print $client $_;
 	}
+	close $client;
 }
 
 
@@ -341,7 +324,7 @@ sub processFile() {
 			$file=~ s/^\.//;
 			redir ("$file/") unless $file=~ m{/$};
 		}
-		showdir($file);
+		&showdir($file);
 	} elsif (-f $file) {
 		my $mime= "text/html";
 		chomp $mime;
